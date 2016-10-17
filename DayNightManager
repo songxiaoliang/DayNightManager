@@ -1,0 +1,132 @@
+package com.song.daynightmanager.util;
+
+import android.content.Context;
+import android.content.res.Resources;
+import android.util.Log;
+
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+
+/**
+ * 使用该工具，要将夜间资源名称定义为_night格式
+ * 例如字体颜色：白天模式为 textColor
+ * 则夜间模式要定义成textColor_night，详情见demo
+ * Created by Song on 2016/10/17.
+ */
+public class DayNightManager {
+
+    // 默认白天模式
+    private static ThemeMode currentThemeMode = ThemeMode.DAY;
+
+    // 缓存回调
+    private static List<OnThemeChangeListener> mOnThemeChangeListenerList = new LinkedList<>();
+
+    // 夜间资源缓存，key : 资源类型, 值<key:资源名称, value:int值>
+    private static HashMap<String,HashMap<String,Integer>> mCacheNightResId = new HashMap<>();
+
+    // 夜间模式资源后缀
+    // 例如，白天模式下资源ID为：R.color.act_bg
+    // 夜间模式为：R.color.act_bg_night
+    private static final String RESOURCE_SUFFIX = "_night";
+
+    /**
+     * 设置主题模式
+     * 原理：遍历缓存的回调监听，调用onThemeChanged响应改变
+     * @param themeMode
+     */
+    public static void setThemeMode(ThemeMode themeMode) {
+
+        if(currentThemeMode != themeMode) {
+            currentThemeMode = themeMode;
+            for (int i = 0; i < mOnThemeChangeListenerList.size(); i++) {
+                Log.e("-----",themeMode + "");
+                mOnThemeChangeListenerList.get(i).onThemeChanged();
+            }
+        }
+    }
+
+    /**
+     * 获取当前模式下的资源ID
+     * 传入的是日间模式，直接返回资源ID，传入夜间模式，返回夜间模式资源ID
+     * 原理：通过资源Id获取当前模式下的资源Id，如果为夜间，则去缓存取，没有则通过
+     * getIdentifier方法获取资源Id，并放入缓存方便下次直接取出。
+     * @return
+     */
+    public static int getThemeResourceId(Context context,int resourceId) {
+
+        if(getCurrentThemeMode() == ThemeMode.DAY) {
+            //白天模式下直接返回
+            return resourceId;
+        }
+
+        // 获取资源名
+        String resName = context.getResources().getResourceName(resourceId);
+        // 获取资源类型
+        String resType = context.getResources().getResourceTypeName(resourceId);
+
+        //从缓存中根据资源名找到资源
+        HashMap<String,Integer> cacheNightRes  = mCacheNightResId.get(resType);
+        if(cacheNightRes == null) {
+            cacheNightRes = new HashMap<>();
+        }
+        //通过资源名，获取夜间资源ID
+        Integer resId = cacheNightRes.get(resName + RESOURCE_SUFFIX);
+
+        if(resId != null && resId != 0) {
+            return resId;
+        } else {
+            //没有缓存则通过getIdentifier获取
+            try {
+                int nightResId = context.getResources().getIdentifier(resName + RESOURCE_SUFFIX,resType,context.getPackageName());
+                cacheNightRes.put(resName + RESOURCE_SUFFIX,nightResId);
+                mCacheNightResId.put(resType,cacheNightRes);
+                return nightResId;
+            } catch (Resources.NotFoundException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return 0;
+    }
+
+
+    /**
+     * 获取当前主题模式
+     * @return
+     */
+    public static ThemeMode getCurrentThemeMode() {
+
+        return currentThemeMode;
+    }
+
+    /**
+     * 主题类型：白天，夜间
+     */
+    public enum ThemeMode {
+        DAY,NIGHT
+    }
+
+    public interface OnThemeChangeListener {
+        void onThemeChanged();
+    }
+
+    /**
+     * 注册回调监听
+     * @param onThemeChangeListener
+     */
+    public static void registerListener(OnThemeChangeListener onThemeChangeListener){
+        if (!mOnThemeChangeListenerList.contains(onThemeChangeListener)) {
+            mOnThemeChangeListenerList.add(onThemeChangeListener);
+        }
+    }
+
+    /**
+     * 反注册回调监听
+     */
+    public static void unRegisterListener(OnThemeChangeListener onThemeChangeListener) {
+        if (mOnThemeChangeListenerList.contains(onThemeChangeListener)) {
+            mOnThemeChangeListenerList.remove(onThemeChangeListener);
+        }
+    }
+}
